@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Greg Glinoga - Visualization</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="styles/dc.css">
+    <link rel="stylesheet" href="styles/styles.css">
+    <style>
+        .dc-chart g.row text {
+            fill: #020000;
+        }
+        .container {
+            min-width: 1600px !important;
+        }
+        .chart-title {
+            font-weight: 500 !important;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+
+        <a class="navbar-brand" href="#">
+            <img src="img/gg.jpg" class="rounded-circle profile-img" alt="...">
+            <span class="nav-title">Greg Glinoga - Visualization of Cancer Surgeries Performed in California Hospitals from 2013 to 2017</span>
+        </a>
+    </nav>
+
+    <div class="container-fluid p-5">
+        <div class="jumbotron ">
+            <h4>Cancer Surgeries Performed in California Hospitals from 2013 to 2017</h4>
+            <p>The dataset contains the number (volume) for 11 types of cancer (bladder, breast, brain, colon, esophagus, liver, lung, pancreas, prostate, rectum, and stomach) surgeries performed in California hospitals in 2013-2015. Data are reported for January – September 2015, which began 10/1/2015. Comparisons across years should be made with caution since previous years’ results are based on 12 months of data, while this analysis is based on 9 months of data. The 2015 data may differ from previous years due to the coding change. For all types of cancer surgeries, except breast cancer, the dataset contains surgeries performed in the inpatient hospital setting. For breast cancer surgeries, this dataset includes procedures performed in inpatient and outpatient settings.</p>
+        </div>
+        <div class="row">
+            <div id="data-count" class="dc-data-count" style = "float: right; padding-left: 16px;">
+                <span class="filter-count"></span> selected out of <span
+                    class="total-count"></span> | <a href = "javascript:dc.filterAll();
+               dc.renderAll();">Reset All</a>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-2">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="chart-wrapper">
+                            <div class="chart-title">
+                                Year
+                                <a href="javascript:;" class="reset"></a>
+                            </div>
+                            <div class="chart-stage">
+
+                                <div id="year-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="chart-wrapper">
+                            <div class="chart-title">
+                                Top 10 Surgeries by County
+                            </div>
+                            <div class="chart-stage">
+
+                                <div id="county-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-md-5">
+                <div id="surgery-chart"></div>
+
+            </div>
+            <div class="col-md-5">
+                <div class="row">
+                    <div class="col-md-12">
+
+                        <div id="search" style="width:100%"></div>
+
+                        <table class="table dc-data-grid">
+                            <thead>
+                            <tr class="header">
+                                <th>County</th>
+                                <th>Hospital</th>
+                                <th>Surgery</th>
+                                <th>Cases</th>
+                            </tr>
+                            </thead>
+                        </table>
+
+                    </div>
+                </div>
+
+            </div>
+
+
+
+
+        </div>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
+
+    <script src="js/crossfilter.js"></script>
+    <script src="js/d3.js"></script>
+    <script src="js/dc.js"></script>
+    <script src="js/underscore-min.js"></script>
+        <script type="text/javascript">
+            /* instantiate and configure map */
+            var ndx;
+            /* specify charts */
+            var yearChart = dc.pieChart('#year-chart'),
+                    countyChart = dc.rowChart('#county-chart'),
+                    surgeryChart = dc.barChart('#surgery-chart'),
+
+                    dataCount = dc.dataCount('#data-count'),
+                    dataTable = dc.dataTable('.dc-data-grid'),
+
+                    search = dc.textFilterWidget('#search');
+
+            d3.csv('data/data.csv').then(function(data) {
+                console.log('data first length', data.length);
+                data = _.filter(data, function(d) { return d.Hospital != 'Statewide';});
+                console.log('data', data.length);
+                _.each(data, function(d) {
+                    d.Cases = +d.Cases;
+                    d.Total = 0;
+                    d.Surgery = d.Surgery.toUpperCase();
+
+                });
+
+
+                ndx = crossfilter(data);
+                var all = ndx.groupAll();
+
+                var countyDim = ndx.dimension(function(d) { return d["County"]});
+                var countyGroup = countyDim.group();
+
+
+                var yearDim = ndx.dimension(function(d) { return d["Year"];});
+                var yearGroup = yearDim.group();
+                var countPerYear = yearDim.group().reduceCount(function(d) { return d.Cases});
+
+                var hospitalDim = ndx.dimension(function(d) { return d["Hospital"]});
+                var hospitalGroup = hospitalDim.group().reduceCount(function(d) { return d.Cases});
+
+
+
+                var surgeryDim = ndx.dimension(function(d) { return d["Surgery"].toUpperCase()});
+                var surgerySumGroup = surgeryDim.group().reduceSum(function(d) { return d.Cases;});
+
+                var casesDim = ndx.dimension(function(d) { return +d["Cases"]});
+                var casesGroupSum = casesDim.group().reduceCount(function(d) { return d.Cases;});
+
+                var seriesSurgeryDim = ndx.dimension(function(d) { return [ d['Surgery'], +d['Year']];});
+                var seriesSurgeryGroup = seriesSurgeryDim.group().reduceSum(function(d) { return +d['Case'];});
+
+
+                var allDim = ndx.dimension(function(d) { return d;});
+
+                search.dimension(hospitalDim);
+
+
+                yearChart
+                        .width(250)
+                        .height(250)
+                        .slicesCap(5)
+                        .innerRadius(60)
+                        .dimension(yearDim)
+                        .group(yearGroup)
+                        //.legend(dc.legend())
+                        // workaround for #703: not enough data is accessible through .label() to display percentages
+                        .on('pretransition', function(chart) {
+                            chart.selectAll('text.pie-slice').text(function(d) {
+                                return d.data.key + ' ' + dc.utils.printSingleValue((d.endAngle - d.startAngle) / (2*Math.PI) * 100) + '%';
+                            })
+                        });
+
+
+                countyChart
+                        .height(400)
+                        .dimension(countyDim)
+                        .group(countyGroup)
+                        .data(function(group) { return group.top(10)})
+                        .elasticX(true);
+
+
+
+                surgeryChart
+                        .width(800)
+                        .height(380)
+                        .x(d3.scaleBand())
+                        .xUnits(dc.units.ordinal)
+                        .brushOn(false)
+                        .elasticY(true)
+                        .xAxisLabel('Cancer Type')
+                        .yAxisLabel('Number of Cases')
+                        .xAxisPadding('30px')
+                        .dimension(surgeryDim)
+                        .barPadding(0.1)
+                        //.outerPadding(0.05)
+                        .group(surgerySumGroup);
+
+
+
+                dataCount
+                        .dimension(ndx)
+                        .group(ndx.groupAll());
+
+                console.log('hosp ', hospitalDim);
+
+                dataTable
+                        .dimension(yearDim)
+                        .section(function (d) {
+                            return d.Year;
+                        })
+                        .showSections(true)
+                        .columns([
+                            function(d) { return d.County},
+                            function(d) { return d.Hospital},
+                            function(d) { return d.Surgery},
+                            function(d) { return d.Cases}
+                        ])
+                        .sortBy(function(d) { return -d.Cases;})
+                        .order(d3.ascending)
+                        .on('renderlet', function (c) {
+                            i = 0;
+                        });
+
+                dc.renderAll();
+            })
+
+        </script>
+</body>
+
+</html>
